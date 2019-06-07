@@ -47,18 +47,26 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %ADMM implementation.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Variable initialization
-w      = rand(s2, 1);
-v1     = zeros(s2, 1);
-v2     = zeros(s1, s2);
-v3     = zeros(s2, 1);
-y1     = zeros(s2, 1);
-y2     = zeros(s1, s2);
-y3     = zeros(s2, 1);
-iter   = 10000;
-ro     = 0.0000001;
-mu     = 0.0000001;
-lambda = 0.0000001;
+%Variable initialization zeros
+% v1     = zeros(s2, 1);
+% v2     = zeros(s1, s2);
+% v3     = zeros(s2, 1);
+% y1     = zeros(s2, 1);
+% y2     = zeros(s1, s2);
+% y3     = zeros(s2, 1);
+%Variable initialization random
+v1     = rand(s2, 1);
+v2     = rand(s1, s2);
+v3     = rand(s2, 1);
+y1     = rand(s2, 1);
+y2     = rand(s1, s2);
+y3     = rand(s2, 1);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Parameter initialization
+iter   = 1000;
+ro     = 0.0001;
+mu     = 0.00001;
+lambda = 0.00001;
 alpha  = lambda/ro;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Ciclo de optimizacion
@@ -72,9 +80,9 @@ objfunc  = [];
 for i = 1:iter
     disp(i)
     w        = ((2*X2) + (3*ro*eye(sx2, sx2)))\((2*X'*rb) + ro*(v1 + Dinv(X, v2) + v3 - y1 - Dinv(X, y2) - y3));
-    v1       = soft(v1, alpha);
-    v2       = soft_svd(v2, -ro);
-    v3       = sum_v3(v3);
+    v1       = soft(w+y1, alpha);
+    v2       = soft_svd(Dfor(X, w)+y2, -ro);
+    v3       = sum_v3(v3, w, y3);
     y1       = y1 + (ro*(v1 - w));
     y2       = y2 + (ro*(v2 - Dfor(X, w)));
     y3       = y3 + (ro*(v3 - w));

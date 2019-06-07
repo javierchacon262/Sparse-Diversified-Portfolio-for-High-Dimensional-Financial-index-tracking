@@ -4,6 +4,7 @@ sx2 = size(X, 2);
 sv2 = size(v, 2);
 mat = zeros(sx1, sx2);
 onv = ones(sx1, 1);
+onv(2:end, 1) = 0;
 for i = 1:sx1
     for j = 1:sx2
         if X(i, j) ~= 0
