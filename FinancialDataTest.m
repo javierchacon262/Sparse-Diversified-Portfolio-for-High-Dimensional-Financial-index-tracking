@@ -5,11 +5,12 @@ dbstop if error
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Market data lecture
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Data   = load('MarketSP500.mat');
-stocks = Data.DataMat;
-gspc   = Data.gspc;
+Data    = load('MarketSP500.mat');
+stocks  = Data.DataMat;
+gspc    = Data.gspc;
+symbols = Data.symbols;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Price based returns calculation
+%Price-based returns calculation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 s1    = size(stocks, 1);
 s2    = size(stocks, 2);
@@ -24,36 +25,6 @@ for i = 1:s1
     end
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Returns correlation matrix calculation
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% rCov =          cov(returns_M); %Covariance matrix
-% [rCor, sigma] = corrcov(rCov);  %Correlation matrix
-%figure
-%subplot(1, 2, 1)
-%imagesc(rCor)
-%colorbar
-%title('Returns Correlation Matrix:')
-%sumvec = zeros(1, s2);
-%for i = 1:s2
-%    sumvec(i) = sum(rCor(:, i));
-%end
-%sumvec = (1/max(sumvec)).*sumvec;
-%x = 1:s2;
-%subplot(1, 2, 2)
-%scatter(x, sumvec)
-%title('Normalized Stocks Correlation Sum:')
-%xlabel('stock number')
-%ylabel('normalized correlation sum')
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%ADMM implementation.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Variable initialization zeros
-% v1     = zeros(s2, 1);
-% v2     = zeros(s1, s2);
-% v3     = zeros(s2, 1);
-% y1     = zeros(s2, 1);
-% y2     = zeros(s1, s2);
-% y3     = zeros(s2, 1);
 %Variable initialization random
 v1     = rand(s2, 1);
 v2     = rand(s1, s2);
@@ -63,11 +34,11 @@ y2     = rand(s1, s2);
 y3     = rand(s2, 1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Parameter initialization
-iter   = 1000;
-ro     = 0.0001;
-mu     = 0.00001;
-lambda = 0.00001;
-alpha  = lambda/ro;
+iter   = 100;
+ro     = 0.001;
+mu     = 0.1;
+lambda = 0.1;
+alpha  = 0.001;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Ciclo de optimizacion
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -86,13 +57,42 @@ for i = 1:iter
     y1       = y1 + (ro*(v1 - w));
     y2       = y2 + (ro*(v2 - Dfor(X, w)));
     y3       = y3 + (ro*(v3 - w));
+    w(w<0) = 0;
+    w = w/norm(w, 1);
     norm1vec = [norm1vec, norm(w, 1)];
     norm2vec = [norm2vec, norm((X*w) - rb)];
-    normNvec = [normNvec, norm(svd(Dfor(X, w)),1)];
+    %normNvec = [normNvec, norm(svd(Dfor(X, w)),1)];
+    normNvec = [normNvec, norm(svd(X*w),1)];
     obj      = norm2vec(i) + lambda*norm1vec(i) - normNvec(i);
     objfunc  = [objfunc, obj];
 end
-xiter = 1:iter;
+xiter       = 1:iter;
+[ws, idxws] = sort(w, 'descend');
+ws(20:end)  = 0;
+wss         = zeros(sx2, 1);
+Port_s      = [];
+Port_f      = [];
+for i = 1:sx2
+    wss(idxws(i)) = ws(i);
+end
+wss = wss/norm(wss, 1);
+for i = 1:sx2
+    if wss(i) ~= 0
+        Port_s = [Port_s, symbols(i)];
+        Port_f = [Port_f, wss(i)];
+    end
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Restore price from returns for every portfolio and comparison
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pw    = [gspc(1).Close];
+pwss  = [gspc(1).Close];
+rxw   = X*w;
+rxwss = X*wss;
+for i = 1:s1-1
+    pw   = [pw, (pw(i) + pw(i)*rxw(i))];
+    pwss = [pwss, (pwss(i) + pwss(i)*rxwss(i))];
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %First graph, norms behaviour
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -122,8 +122,41 @@ xlabel('Iterations')
 ylabel('OBJ-Func')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure
-xr2 = 1:340;
+subplot(1, 2, 1)
+xr2 = 1:s1;
 plot(xr2, X*w)
 hold on
+plot(xr2, X*wss)
 plot(xr2, rb)
-
+title('Returns Comparison')
+legend('X*w','X*wss','rb')
+hold off
+subplot(1, 2, 2)
+spc = zeros(s1);
+for i = 1:s1
+    spc(i) = gspc(i).Close;
+end
+plot(xr2, spc)
+hold on
+plot(xr2, pw)
+plot(xr2, pwss)
+legend('Benchmark', 'PW', 'PWSS')
+hold off
+xlabel('Time Periods: Days')
+ylabel('Index Price: USD$')
+ylim([2000, 3000])
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('')
+disp('L2-Norm between the selected 20-asset portfolio and the benchmark:')
+disp(norm(X*wss - rb))
+disp('')
+disp('L2-Norm between the selected 20-asset portfolio and the +0- (220-230)-asset portfolio:')
+disp(norm(X*wss - X*w))
+disp('')
+disp('L2-Norm between the +0- (220-230)-asset portfolio and the benchmark:')
+disp(norm(X*w - rb))
+disp('')
+disp('20-asset portfolio found:')
+disp(Port_s)
+disp(Port_f)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
